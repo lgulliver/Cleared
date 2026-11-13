@@ -11,11 +11,18 @@ local KEY_EVENTS = { "PLAYER_TARGET_CHANGED", "UPDATE_MOUSEOVER_UNIT", "NAME_PLA
 
 local db -- ForeverDungeonCompleteCharDB, set on ADDON_LOADED
 local settingsCategory
-local active -- { map, key, run } while inside a supported dungeon
+local active -- { map, key, run, reset } while inside a supported dungeon
 local frame = CreateFrame("Frame")
 
 local function Print(msg)
 	print("|cffffd200ForeverDungeonComplete|r: " .. msg)
+end
+
+local function ShowBanner(r)
+	if db.settings.banner then
+		UI.Banner("DUNGEON COMPLETE", r.unit,
+			r.total .. "/" .. r.total .. " · " .. Progress.FormatElapsed(r.elapsed), db.settings.sound)
+	end
 end
 
 -- Instance key ----------------------------------------------------------------
@@ -40,11 +47,14 @@ local function TryResolveKey(unit)
 		return
 	end
 	active.key = key
-	if db.runs[key] then
-		active.run = Progress.Merge(db.runs[key], active.run)
-	end
+	local results
+	active.run, results = Progress.Resolve(db.runs[key], active.run, active.reset)
+	active.reset = nil
 	db.runs[key] = active.run
 	SetKeyEvents(false)
+	for _, r in ipairs(results) do
+		ShowBanner(r)
+	end
 end
 
 -- Zone tracking ---------------------------------------------------------------
@@ -89,9 +99,8 @@ local function OnEncounterEnd(encounterID, encounterName, success)
 	if db.settings.toasts then
 		UI.Toast(r.name .. " defeated", r.optional and "(bonus)" or (r.done .. "/" .. r.total))
 	end
-	if r.completed and db.settings.banner then
-		UI.Banner("DUNGEON COMPLETE", r.unit,
-			r.total .. "/" .. r.total .. " · " .. Progress.FormatElapsed(r.elapsed), db.settings.sound)
+	if r.completed then
+		ShowBanner(r)
 	end
 end
 
@@ -139,6 +148,7 @@ end
 frame:RegisterEvent("ADDON_LOADED")
 frame:RegisterEvent("PLAYER_ENTERING_WORLD")
 frame:RegisterEvent("ZONE_CHANGED_NEW_AREA")
+frame:RegisterEvent("ENCOUNTER_START")
 frame:RegisterEvent("ENCOUNTER_END")
 frame:SetScript("OnEvent", function(_, event, ...)
 	if event == "ADDON_LOADED" then
@@ -156,6 +166,10 @@ frame:SetScript("OnEvent", function(_, event, ...)
 	end
 	if event == "PLAYER_ENTERING_WORLD" or event == "ZONE_CHANGED_NEW_AREA" then
 		UpdateZone()
+	elseif event == "ENCOUNTER_START" then
+		-- Learn the instance copy before the kill, so toast counts include saved progress.
+		TryResolveKey("boss1")
+		TryResolveKey("target")
 	elseif event == "ENCOUNTER_END" then
 		local encounterID, encounterName, _, _, success = ...
 		OnEncounterEnd(encounterID, encounterName, success)
@@ -198,12 +212,12 @@ SlashCmdList.FOREVERDUNGEONCOMPLETE = function(arg)
 			Print("not in a supported dungeon.")
 			return
 		end
-		if active.key then
-			db.runs[active.key] = nil
-		end
 		active.run = Progress.New(active.map, time())
 		if active.key then
 			db.runs[active.key] = active.run
+		else
+			-- Saved progress for this copy isn't known yet; drop it when the key resolves.
+			active.reset = true
 		end
 		Print("progress for this instance cleared.")
 	elseif arg == "debug" then

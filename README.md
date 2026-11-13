@@ -67,4 +67,4 @@ luacheck ForeverDungeonComplete tools tests
 
 - Dungeons only, no raids.
 - Kills are detected through the game's encounter events. A boss that doesn't fire one can't be counted, and its dungeon is listed as disabled.
-- Progress made before the addon has seen any creature in the instance (so before it knows which instance copy you're in) is kept in memory only until it does.
+- Kills made before the addon has seen any creature in the instance (so before it knows which instance copy you're in) are kept in memory and merged into saved progress once it does. A wing finished in that window gets its banner at that point.

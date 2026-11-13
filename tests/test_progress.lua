@@ -135,6 +135,43 @@ return {
 		t.eq(r.elapsed, 300, "elapsed from saved entry")
 	end,
 
+	-- Review finding: the last kill lands in the pending run before the key resolves.
+	resolve_completes_after_late_merge = function(ns, t)
+		local saved = ns.Progress.New(189, 100)
+		ns.Progress.OnEncounterEnd(saved, 449, 1, 150)
+		local pending = ns.Progress.New(189, 300)
+		local r = ns.Progress.OnEncounterEnd(pending, 450, 1, 400)
+		t.eq(r.completed, false, "pending alone can't see the saved kill")
+		local run, results = ns.Progress.Resolve(saved, pending, false)
+		t.eq(#results, 1, "one unit completes on resolve")
+		t.eq(results[1].unit, "Scarlet Monastery: Cathedral", "unit")
+		t.eq(results[1].completed, true, "completed")
+		t.eq(results[1].done, 2, "done")
+		t.eq(results[1].total, 2, "total")
+		t.eq(results[1].elapsed, 300, "elapsed to the last kill from saved entry")
+		t.eq(run.done["Scarlet Monastery: Cathedral"], true, "marked done")
+		local _, again = ns.Progress.Resolve(run, ns.Progress.New(189, 500), false)
+		t.eq(#again, 0, "never completes twice")
+	end,
+
+	resolve_without_saved = function(ns, t)
+		local pending = ns.Progress.New(36, 0)
+		ns.Progress.OnEncounterEnd(pending, 2747, 1, 10)
+		local run, results = ns.Progress.Resolve(nil, pending, false)
+		t.eq(run, pending, "pending becomes the run")
+		t.eq(#results, 0, "nothing newly complete")
+	end,
+
+	-- Review finding: /fdc reset before the key resolves must not pull old kills back.
+	resolve_discards_saved_after_reset = function(ns, t)
+		local saved = ns.Progress.New(189, 100)
+		ns.Progress.OnEncounterEnd(saved, 449, 1, 150)
+		local pending = ns.Progress.New(189, 300)
+		local run = ns.Progress.Resolve(saved, pending, true)
+		t.eq(run, pending, "pending wins")
+		t.eq(run.killed[449], nil, "old kill gone")
+	end,
+
 	guid_key = function(ns, t)
 		t.eq(ns.Progress.KeyFromGUID("Creature-0-4372-189-12345-3974-0000ABCDEF"), "189:12345", "creature")
 		t.eq(ns.Progress.KeyFromGUID("Vehicle-0-4372-189-12345-3974-0000ABCDEF"), "189:12345", "vehicle")

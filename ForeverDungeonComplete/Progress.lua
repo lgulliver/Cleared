@@ -119,6 +119,38 @@ function Progress.Merge(saved, pending)
 	return saved
 end
 
+-- Adopts the run for a newly resolved instance key. Kills recorded before the key was known
+-- (pending) are merged into the saved run unless the player reset in the meantime, then every
+-- unit is re-checked: a wing whose last kill landed in the pending run completes here.
+-- Returns the run to keep and a list of results for units that just completed.
+function Progress.Resolve(saved, pending, discardSaved)
+	local run = pending
+	if saved and not discardSaved then
+		run = Progress.Merge(saved, pending)
+	end
+	local results = {}
+	for _, unit in ipairs(Progress.Units(run.map)) do
+		local done, total = countKilled(run, unit), #unit.encounters
+		if done == total and not run.done[unit.name] then
+			run.done[unit.name] = true
+			local last = run.entered
+			for _, id in ipairs(unit.encounters) do
+				last = math.max(last, run.killed[id])
+			end
+			results[#results + 1] = {
+				name = ns.Encounters[unit.encounters[total]].name,
+				optional = false,
+				unit = unit.name,
+				done = done,
+				total = total,
+				completed = true,
+				elapsed = last - run.entered,
+			}
+		end
+	end
+	return run, results
+end
+
 -- "Creature-0-serverID-mapID-zoneUID-npcID-spawnUID" -> "mapID:zoneUID".
 -- The zone UID identifies one instance copy, so a reset gives a new key.
 function Progress.KeyFromGUID(guid)
