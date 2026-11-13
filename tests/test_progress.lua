@@ -180,6 +180,19 @@ return {
 		t.eq(ns.Progress.KeyFromGUID(nil), nil, "nil")
 	end,
 
+	-- In-game error: UnitGUID on a nameplate returns a secret string that errors when indexed.
+	guid_key_secret = function(ns, t)
+		local secret = "Creature-0-4372-189-12345-3974-0000ABCDEF"
+		local saved = _G.issecretvalue
+		_G.issecretvalue = function(v)
+			return v == secret
+		end
+		local ok, key = pcall(ns.Progress.KeyFromGUID, secret)
+		_G.issecretvalue = saved
+		t.ok(ok, "does not error")
+		t.eq(key, nil, "secret GUID gives no key")
+	end,
+
 	prune = function(ns, t)
 		local now = 1000000
 		local runs = { old = { entered = now - 90000 }, fresh = { entered = now - 100 } }

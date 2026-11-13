@@ -153,8 +153,9 @@ end
 
 -- "Creature-0-serverID-mapID-zoneUID-npcID-spawnUID" -> "mapID:zoneUID".
 -- The zone UID identifies one instance copy, so a reset gives a new key.
+-- Secret GUIDs (the client hides some, e.g. nameplate units in instances) give nil.
 function Progress.KeyFromGUID(guid)
-	if type(guid) ~= "string" then
+	if type(guid) ~= "string" or (issecretvalue and issecretvalue(guid)) then
 		return nil
 	end
 	local kind, mapID, zoneUID = guid:match("^(%a+)%-%d+%-%d+%-(%d+)%-(%d+)%-")

@@ -19,6 +19,7 @@ read_globals = {
 	"Settings",
 	"UIParent",
 	"UnitGUID",
+	"issecretvalue",
 	"time",
 }
 
