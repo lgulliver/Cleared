@@ -1,0 +1,12 @@
+## Interface: 16001
+## Title: ForeverDungeonComplete
+## Notes: Boss kill progress toasts and a Dungeon Complete banner. Built for WoW Forever.
+## IconTexture: Interface\Icons\INV_Misc_Head_Dragon_01
+## Version: @project-version@
+## SavedVariablesPerCharacter: ForeverDungeonCompleteCharDB
+
+Data.lua
+Overrides.lua
+Progress.lua
+UI.lua
+ForeverDungeonComplete.lua

@@ -1,0 +1,70 @@
+<h1 align="center">ForeverDungeonComplete</h1>
+
+An addon for [World of Warcraft: Forever](https://worldofwarcraft.blizzard.com/) that tells you when you've finished a dungeon, the way retail does.
+
+- **A toast for every boss.** Each kill shows the boss name and your progress, e.g. `Lord Roccor defeated  2/16`.
+- **A banner when you're done.** Once every counted boss in the dungeon (or wing) is dead, you get a `DUNGEON COMPLETE` banner with the elapsed time and a sound.
+- **Wings count separately.** Scarlet Monastery, Dire Maul, Stratholme and Blackrock Spire are split into their wings, and each one gets its own count and banner.
+- **Survives reloads.** Progress is saved per instance copy, so a `/reload` or disconnect picks up where you left off, and a fresh reset starts at zero.
+
+## Install
+
+Requires the WoW Forever client (interface `16001`).
+
+1. Download this repo (Code > Download ZIP, or `git clone`), then copy or symlink the `ForeverDungeonComplete` folder into
+   `World of Warcraft/_forever_/Interface/AddOns/`.
+2. Start the game, or `/reload` if it's already running.
+
+For development, a symlink means edits in this repo show up in the game folder immediately:
+
+```sh
+ln -s "$PWD/ForeverDungeonComplete" "/path/to/World of Warcraft/_forever_/Interface/AddOns/ForeverDungeonComplete"
+```
+
+## Usage
+
+| Command | What it does |
+|---------|--------------|
+| `/fdc` | Open the settings panel (not available in combat) |
+| `/fdc status` | Show the current dungeon or wing, bosses killed and bosses remaining |
+| `/fdc test` | Show a sample toast and banner |
+| `/fdc reset` | Forget progress for the current instance |
+| `/fdc debug` | Print every boss encounter event with its ID (useful for reporting a boss that isn't counted) |
+
+## Settings
+
+Esc > Options > AddOns > ForeverDungeonComplete. Saved per character: boss kill toasts, the Dungeon Complete banner, and the banner sound, each on or off.
+
+## Which bosses count
+
+Boss data comes from the Forever client's own `DungeonEncounter` table (via [wago.tools](https://wago.tools)), so every dungeon in the game is covered without hand-typed boss lists. `Overrides.lua` adjusts it:
+
+- **Optional bosses** (rares, quest summons, event bosses such as Skul, Lord Valthalak or Hurley Blackbreath) get a `(bonus)` toast but never count towards completion.
+- **Wings**: maps that hold several dungeons are split, and each wing completes on its own.
+- **Disabled dungeons**: dungeons whose bosses don't report kills are switched off with a chat note until they're supported.
+
+## Regenerating the data
+
+After a Forever patch:
+
+```sh
+python3 tools/gen_data.py            # newest Forever build on wago.tools
+python3 tools/gen_data.py --build 1.60.1.70938
+```
+
+This rewrites `ForeverDungeonComplete/Data.lua` and then runs `luajit tools/check_data.lua`. The check fails if a boss on a winged map isn't assigned to a wing or marked optional, or if an override points at a boss that no longer exists.
+
+Tests:
+
+```sh
+luajit tests/run.lua
+luajit tools/check_data.lua
+python3 -m unittest tools/test_gen_data.py
+luacheck ForeverDungeonComplete tools tests
+```
+
+## Limitations
+
+- Dungeons only, no raids.
+- Kills are detected through the game's encounter events. A boss that doesn't fire one can't be counted, and its dungeon is listed as disabled.
+- Progress made before the addon has seen any creature in the instance (so before it knows which instance copy you're in) is kept in memory only until it does.

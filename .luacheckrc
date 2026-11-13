@@ -12,7 +12,16 @@ globals = {
 read_globals = {
 	"C_Timer",
 	"CreateFrame",
+	"GetInstanceInfo",
 	"GetTime",
+	"InCombatLockdown",
 	"PlaySound",
+	"Settings",
 	"UIParent",
+	"UnitGUID",
+	"time",
 }
+
+-- Dev tooling runs under plain LuaJIT, not the WoW client.
+files["tools/"] = { std = "luajit" }
+files["tests/"] = { std = "luajit" }
