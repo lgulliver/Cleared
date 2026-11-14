@@ -4,8 +4,8 @@
 
 local ns = {}
 for _, file in ipairs({ "Data.lua", "Overrides.lua" }) do
-	local chunk = assert(loadfile("ForeverDungeonComplete/" .. file))
-	chunk("ForeverDungeonComplete", ns)
+	local chunk = assert(loadfile("Cleared/" .. file))
+	chunk("Cleared", ns)
 end
 
 local problems = {}

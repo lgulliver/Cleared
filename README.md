@@ -1,4 +1,4 @@
-<h1 align="center">ForeverDungeonComplete</h1>
+<h1 align="center">Cleared!</h1>
 
 An addon for [World of Warcraft: Forever](https://worldofwarcraft.blizzard.com/) that tells you when you've finished a dungeon, the way retail does.
 
@@ -11,29 +11,29 @@ An addon for [World of Warcraft: Forever](https://worldofwarcraft.blizzard.com/)
 
 Requires the WoW Forever client (interface `16001`).
 
-1. Download this repo (Code > Download ZIP, or `git clone`), then copy or symlink the `ForeverDungeonComplete` folder into
+1. Download this repo (Code > Download ZIP, or `git clone`), then copy or symlink the `Cleared` folder into
    `World of Warcraft/_forever_/Interface/AddOns/`.
 2. Start the game, or `/reload` if it's already running.
 
 For development, a symlink means edits in this repo show up in the game folder immediately:
 
 ```sh
-ln -s "$PWD/ForeverDungeonComplete" "/path/to/World of Warcraft/_forever_/Interface/AddOns/ForeverDungeonComplete"
+ln -s "$PWD/Cleared" "/path/to/World of Warcraft/_forever_/Interface/AddOns/Cleared"
 ```
 
 ## Usage
 
 | Command | What it does |
 |---------|--------------|
-| `/fdc` | Open the settings panel (not available in combat) |
-| `/fdc status` | Show the current dungeon or wing, bosses killed and bosses remaining |
-| `/fdc test` | Show a sample toast and banner |
-| `/fdc reset` | Forget progress for the current instance |
-| `/fdc debug` | Print every boss encounter event with its ID (useful for reporting a boss that isn't counted) |
+| `/cleared` | Open the settings panel (not available in combat) |
+| `/cleared status` | Show the current dungeon or wing, bosses killed and bosses remaining |
+| `/cleared test` | Show a sample toast and banner |
+| `/cleared reset` | Forget progress for the current instance |
+| `/cleared debug` | Print every boss encounter event with its ID (useful for reporting a boss that isn't counted) |
 
 ## Settings
 
-Esc > Options > AddOns > ForeverDungeonComplete. Saved per character: boss kill toasts, the Dungeon Complete banner, and the banner sound, each on or off.
+Esc > Options > AddOns > Cleared!. Saved per character: boss kill toasts, the Dungeon Complete banner, and the banner sound, each on or off.
 
 ## Which bosses count
 
@@ -52,7 +52,7 @@ python3 tools/gen_data.py            # newest Forever build on wago.tools
 python3 tools/gen_data.py --build 1.60.1.70938
 ```
 
-This rewrites `ForeverDungeonComplete/Data.lua` and then runs `luajit tools/check_data.lua`. The check fails if a boss on a winged map isn't assigned to a wing or marked optional, or if an override points at a boss that no longer exists.
+This rewrites `Cleared/Data.lua` and then runs `luajit tools/check_data.lua`. The check fails if a boss on a winged map isn't assigned to a wing or marked optional, or if an override points at a boss that no longer exists.
 
 Tests:
 
@@ -60,11 +60,11 @@ Tests:
 luajit tests/run.lua
 luajit tools/check_data.lua
 python3 -m unittest tools/test_gen_data.py
-luacheck ForeverDungeonComplete tools tests
+luacheck Cleared tools tests
 ```
 
 ## Limitations
 
 - Dungeons only, no raids.
 - Kills are detected through the game's encounter events. A boss that doesn't fire one can't be counted, and its dungeon is listed as disabled.
-- The client hides which instance copy you're in, so a reset is detected by the reset message or by an already-killed boss dying again. If you reset without seeing the message and re-enter within 30 minutes, counts start from the old run until you kill a boss you'd already killed. Bosses killed before that point add to the old run, so the banner can fire early. `/fdc reset` fixes it by hand.
+- The client hides which instance copy you're in, so a reset is detected by the reset message or by an already-killed boss dying again. If you reset without seeing the message and re-enter within 30 minutes, counts start from the old run until you kill a boss you'd already killed. Bosses killed before that point add to the old run, so the banner can fire early. `/cleared reset` fixes it by hand.

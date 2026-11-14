@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate ForeverDungeonComplete/Data.lua from wago.tools DB2 exports.
+"""Generate Cleared/Data.lua from wago.tools DB2 exports.
 
 Usage: python3 tools/gen_data.py [--build 1.60.1.70938] [--out PATH] [--skip-check]
 
@@ -18,7 +18,7 @@ import sys
 import urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DEFAULT_OUT = os.path.join(ROOT, "ForeverDungeonComplete", "Data.lua")
+DEFAULT_OUT = os.path.join(ROOT, "Cleared", "Data.lua")
 CHECKER = os.path.join(ROOT, "tools", "check_data.lua")
 BUILDS_URL = "https://wago.tools/api/builds"
 TABLE_URL = "https://wago.tools/db2/{table}/csv?build={build}"
@@ -83,7 +83,7 @@ def render_lua(data, build):
 
 
 def fetch(url):
-    req = urllib.request.Request(url, headers={"User-Agent": "ForeverDungeonComplete-gen_data"})
+    req = urllib.request.Request(url, headers={"User-Agent": "Cleared-gen_data"})
     with urllib.request.urlopen(req, timeout=60) as resp:
         return resp.read().decode("utf-8")
 

@@ -21,18 +21,18 @@ jobs:
         with:
           persist-credentials: false
 
-      # Builds ForeverDungeonComplete-<version>-forever.zip. The "-forever" suffix is how WowUp
+      # Builds Cleared-<version>-forever.zip. The "-forever" suffix is how WowUp
       # matches a GitHub release asset to the Forever client.
       - name: Build zip
         run: |
           version="${GITHUB_REF_NAME#v}"
           mkdir -p dist
-          cp -r ForeverDungeonComplete dist/ForeverDungeonComplete
-          cp LICENSE dist/ForeverDungeonComplete/LICENSE
-          sed -i "s/@project-version@/${version}/" dist/ForeverDungeonComplete/ForeverDungeonComplete.toc
+          cp -r Cleared dist/Cleared
+          cp LICENSE dist/Cleared/LICENSE
+          sed -i "s/@project-version@/${version}/" dist/Cleared/Cleared.toc
 
           # Interface 16001 -> game patch 1.60.1
-          interface=$(sed -n 's/^## Interface: *\([0-9]*\).*/\1/p' ForeverDungeonComplete/ForeverDungeonComplete.toc | head -1)
+          interface=$(sed -n 's/^## Interface: *\([0-9]*\).*/\1/p' Cleared/Cleared.toc | head -1)
           patch=$(printf "%d.%d.%d" $((interface / 10000)) $((interface / 100 % 100)) $((interface % 100)))
 
           # Any hyphenated tag is a pre-release, so it never ships to CurseForge as a release.
@@ -42,8 +42,8 @@ jobs:
             *) stability=release ;;
           esac
 
-          zip="dist/ForeverDungeonComplete-${version}-forever.zip"
-          (cd dist && zip -qr "../$zip" ForeverDungeonComplete)
+          zip="dist/Cleared-${version}-forever.zip"
+          (cd dist && zip -qr "../$zip" Cleared)
 
           {
             echo "VERSION=$version"

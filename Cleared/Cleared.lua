@@ -1,4 +1,4 @@
--- ForeverDungeonComplete: boss kill toasts and a Dungeon Complete banner for WoW Forever (interface 16001).
+-- Cleared!: boss kill toasts and a Dungeon Complete banner for WoW Forever (interface 16001).
 -- Kills come from ENCOUNTER_END. Creature GUIDs are secret inside Forever dungeons, so the instance
 -- copy can't be identified directly. Progress is saved per dungeon and resumed when you come back
 -- within RESUME_WINDOW; a reset message or an already-killed boss dying again starts a new run.
@@ -11,14 +11,14 @@ local RESUME_WINDOW = 1800 -- roughly when an empty instance resets
 local TOUCH_INTERVAL = 60
 local DEFAULTS = { toasts = true, banner = true, sound = true, debug = false }
 
-local db -- ForeverDungeonCompleteCharDB, set on ADDON_LOADED
+local db -- ClearedCharDB, set on ADDON_LOADED
 local settingsCategory
 local active -- { map, run } while inside a supported dungeon
 local ticker
 local frame = CreateFrame("Frame")
 
 local function Print(msg)
-	print("|cffffd200ForeverDungeonComplete|r: " .. msg)
+	print("|cffffd200Cleared!|r: " .. msg)
 end
 
 local function ShowBanner(r)
@@ -103,7 +103,7 @@ end
 -- Settings --------------------------------------------------------------------
 
 local function BuildSettings()
-	local category = Settings.RegisterVerticalLayoutCategory(ADDON)
+	local category = Settings.RegisterVerticalLayoutCategory("Cleared!")
 	local function Check(key, label, tip)
 		local setting = Settings.RegisterAddOnSetting(category, ADDON .. "_" .. key, key, db.settings,
 			type(DEFAULTS[key]), label, DEFAULTS[key])
@@ -127,8 +127,8 @@ local function OpenSettings()
 end
 
 local function InitDB()
-	ForeverDungeonCompleteCharDB = ForeverDungeonCompleteCharDB or {}
-	db = ForeverDungeonCompleteCharDB
+	ClearedCharDB = ClearedCharDB or {}
+	db = ClearedCharDB
 	db.settings = db.settings or {}
 	for key, value in pairs(DEFAULTS) do
 		if db.settings[key] == nil then
@@ -193,8 +193,8 @@ local function PrintStatus()
 	end
 end
 
-SLASH_FOREVERDUNGEONCOMPLETE1 = "/fdc"
-SlashCmdList.FOREVERDUNGEONCOMPLETE = function(arg)
+SLASH_CLEARED1 = "/cleared"
+SlashCmdList.CLEARED = function(arg)
 	arg = (arg or ""):lower():match("^%s*(.-)%s*$")
 	if arg == "" or arg == "options" or arg == "config" then
 		OpenSettings()
@@ -216,6 +216,6 @@ SlashCmdList.FOREVERDUNGEONCOMPLETE = function(arg)
 		db.settings.debug = not db.settings.debug
 		Print("debug " .. (db.settings.debug and "on" or "off") .. ".")
 	else
-		Print("/fdc (settings) | status | test | reset | debug")
+		Print("/cleared (settings) | status | test | reset | debug")
 	end
 end

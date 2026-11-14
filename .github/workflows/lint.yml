@@ -17,7 +17,7 @@ jobs:
           persist-credentials: false
       - uses: lunarmodules/luacheck@cc089e3f65acdd1ef8716cc73a3eca24a6b845e4 # v1.2.0
         with:
-          args: ForeverDungeonComplete tools tests
+          args: Cleared tools tests
 
   test:
     runs-on: ubuntu-latest

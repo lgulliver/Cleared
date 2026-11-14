@@ -3,9 +3,9 @@ max_line_length = false
 
 -- Globals the addon assigns to.
 globals = {
-	"ForeverDungeonCompleteCharDB",
+	"ClearedCharDB",
 	"SlashCmdList",
-	"SLASH_FOREVERDUNGEONCOMPLETE1",
+	"SLASH_CLEARED1",
 }
 
 -- WoW API the addon reads.

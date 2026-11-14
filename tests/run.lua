@@ -8,8 +8,8 @@ local TEST_FILES = { "tests/test_progress.lua" }
 local function loadNamespace()
 	local ns = {}
 	for _, file in ipairs(ADDON_FILES) do
-		local chunk = assert(loadfile("ForeverDungeonComplete/" .. file))
-		chunk("ForeverDungeonComplete", ns)
+		local chunk = assert(loadfile("Cleared/" .. file))
+		chunk("Cleared", ns)
 	end
 	return ns
 end
