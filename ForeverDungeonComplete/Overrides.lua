@@ -4,6 +4,10 @@ local _, ns = ...
 
 -- Encounters that get a "(bonus)" toast but never count towards completion.
 ns.Optional = {
+	-- Wailing Caverns: wanders in the water / side cave, often skipped
+	[587] = true, -- Kresh
+	[589] = true, -- Skum
+
 	-- Stratholme: rares and quest summons
 	[473] = true, -- Hearthsinger Forresten
 	[2795] = true, -- Black Guard Swordsmith
