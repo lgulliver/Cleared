@@ -13,12 +13,12 @@ read_globals = {
 	"C_Timer",
 	"CreateFrame",
 	"GetInstanceInfo",
+	"INSTANCE_RESET_SUCCESS",
 	"GetTime",
 	"InCombatLockdown",
 	"PlaySound",
 	"Settings",
 	"UIParent",
-	"UnitGUID",
 	"issecretvalue",
 	"time",
 }

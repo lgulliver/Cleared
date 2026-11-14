@@ -5,7 +5,7 @@ An addon for [World of Warcraft: Forever](https://worldofwarcraft.blizzard.com/)
 - **A toast for every boss.** Each kill shows the boss name and your progress, e.g. `Lord Roccor defeated  2/16`.
 - **A banner when you're done.** Once every counted boss in the dungeon (or wing) is dead, you get a `DUNGEON COMPLETE` banner with the elapsed time and a sound.
 - **Wings count separately.** Scarlet Monastery, Dire Maul, Stratholme and Blackrock Spire are split into their wings, and each one gets its own count and banner.
-- **Survives reloads.** Progress is saved per instance copy, so a `/reload` or disconnect picks up where you left off, and a fresh reset starts at zero.
+- **Survives reloads.** Progress is saved per dungeon. Coming back within 30 minutes (after a `/reload`, disconnect or run-back) picks up where you left off. A reset message, or a boss you'd already killed dying again, starts a fresh count.
 
 ## Install
 
@@ -67,4 +67,4 @@ luacheck ForeverDungeonComplete tools tests
 
 - Dungeons only, no raids.
 - Kills are detected through the game's encounter events. A boss that doesn't fire one can't be counted, and its dungeon is listed as disabled.
-- Kills made before the addon has seen any creature in the instance (so before it knows which instance copy you're in) are kept in memory and merged into saved progress once it does. A wing finished in that window gets its banner at that point.
+- The client hides which instance copy you're in, so a reset is detected by the reset message or by an already-killed boss dying again. If you reset without seeing the message and re-enter within 30 minutes, counts start from the old run until you kill a boss you'd already killed. Bosses killed before that point add to the old run, so the banner can fire early. `/fdc reset` fixes it by hand.

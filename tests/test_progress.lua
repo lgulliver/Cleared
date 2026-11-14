@@ -70,8 +70,8 @@ return {
 		local run = ns.Progress.New(189, 100)
 		ns.Progress.OnEncounterEnd(run, 446, 1, 150)
 		ns.Progress.OnEncounterEnd(run, 447, 1, 400)
-		t.eq(ns.Progress.OnEncounterEnd(run, 447, 1, 410), nil, "repeat after completion")
-		t.eq(ns.Progress.OnEncounterEnd(run, 446, 1, 420), nil, "repeat earlier kill")
+		t.eq(ns.Progress.OnEncounterEnd(run, 447, 1, 410), nil, "re-fire after completion")
+		t.eq(ns.Progress.OnEncounterEnd(run, 447, 1, 460), nil, "re-fire at the 60s edge")
 	end,
 
 	second_wing_independent = function(ns, t)
@@ -111,94 +111,89 @@ return {
 		ns.Progress.OnEncounterEnd(run, 446, 1, 150)
 		ns.Progress.OnEncounterEnd(run, 447, 1, 400)
 		local copy = roundtrip(run)
-		t.eq(ns.Progress.OnEncounterEnd(copy, 447, 1, 500), nil, "no second banner")
+		t.eq(ns.Progress.OnEncounterEnd(copy, 447, 1, 430), nil, "no second banner")
 		t.eq(copy.done["Scarlet Monastery: Library"], true, "done kept")
 	end,
 
-	merge = function(ns, t)
-		local saved = { map = 189, entered = 100, killed = { [446] = 150 }, done = {} }
-		local pending = { map = 189, entered = 200, killed = { [447] = 210 }, done = { ["Scarlet Monastery: Library"] = true } }
-		local m = ns.Progress.Merge(saved, pending)
-		t.eq(m.entered, 100, "entered")
-		t.eq(m.killed[446], 150, "saved kill")
-		t.eq(m.killed[447], 210, "pending kill")
-		t.eq(m.done["Scarlet Monastery: Library"], true, "done")
+	-- GUIDs are secret in Forever dungeons, so a new copy shows up as an old boss dying again.
+	repeat_kill_restarts_run = function(ns, t)
+		local run = ns.Progress.New(189, 100)
+		ns.Progress.OnEncounterEnd(run, 446, 1, 150)
+		ns.Progress.OnEncounterEnd(run, 447, 1, 400)
+		local r = ns.Progress.OnEncounterEnd(run, 446, 1, 2000)
+		t.eq(r.restarted, true, "restarted")
+		t.eq(r.done, 1, "counts only the new kill")
+		t.eq(r.completed, false, "no banner")
+		t.eq(run.killed[447], nil, "old kills cleared")
+		t.eq(run.done["Scarlet Monastery: Library"], nil, "old completion cleared")
+		t.eq(run.entered, 2000, "new run starts at the repeat kill")
+		local r2 = ns.Progress.OnEncounterEnd(run, 447, 1, 2300)
+		t.eq(r2.completed, true, "new copy completes again")
+		t.eq(r2.elapsed, 300, "elapsed in the new copy")
 	end,
 
-	merge_then_complete = function(ns, t)
-		local saved = ns.Progress.New(189, 100)
-		ns.Progress.OnEncounterEnd(saved, 446, 1, 150)
-		local pending = ns.Progress.New(189, 300)
-		local m = ns.Progress.Merge(saved, pending)
-		local r = ns.Progress.OnEncounterEnd(m, 447, 1, 400)
-		t.eq(r.completed, true, "completes with saved kill")
-		t.eq(r.elapsed, 300, "elapsed from saved entry")
+	repeat_kill_clears_other_wings = function(ns, t)
+		local run = ns.Progress.New(429, 100)
+		finishEast(ns.Progress, run)
+		ns.Progress.OnEncounterEnd(run, 350, 1, 300)
+		local r = ns.Progress.OnEncounterEnd(run, 343, 1, 5000)
+		t.eq(r.restarted, true, "restarted")
+		t.eq(run.killed[350], nil, "west kill from old copy cleared")
+		t.eq(r.unit, "Dire Maul: East", "unit")
+		t.eq(r.done, 1, "done")
 	end,
 
-	-- Review finding: the last kill lands in the pending run before the key resolves.
-	resolve_completes_after_late_merge = function(ns, t)
-		local saved = ns.Progress.New(189, 100)
-		ns.Progress.OnEncounterEnd(saved, 449, 1, 150)
-		local pending = ns.Progress.New(189, 300)
-		local r = ns.Progress.OnEncounterEnd(pending, 450, 1, 400)
-		t.eq(r.completed, false, "pending alone can't see the saved kill")
-		local run, results = ns.Progress.Resolve(saved, pending, false)
-		t.eq(#results, 1, "one unit completes on resolve")
-		t.eq(results[1].unit, "Scarlet Monastery: Cathedral", "unit")
-		t.eq(results[1].completed, true, "completed")
-		t.eq(results[1].done, 2, "done")
-		t.eq(results[1].total, 2, "total")
-		t.eq(results[1].elapsed, 300, "elapsed to the last kill from saved entry")
-		t.eq(run.done["Scarlet Monastery: Cathedral"], true, "marked done")
-		local _, again = ns.Progress.Resolve(run, ns.Progress.New(189, 500), false)
-		t.eq(#again, 0, "never completes twice")
+	optional_repeat_restarts = function(ns, t)
+		local run = ns.Progress.New(329, 0)
+		ns.Progress.OnEncounterEnd(run, 479, 1, 10)
+		ns.Progress.OnEncounterEnd(run, 2799, 1, 20)
+		local r = ns.Progress.OnEncounterEnd(run, 2799, 1, 3000)
+		t.eq(r.restarted, true, "restarted")
+		t.eq(run.killed[479], nil, "old kill cleared")
 	end,
 
-	resolve_without_saved = function(ns, t)
-		local pending = ns.Progress.New(36, 0)
-		ns.Progress.OnEncounterEnd(pending, 2747, 1, 10)
-		local run, results = ns.Progress.Resolve(nil, pending, false)
-		t.eq(run, pending, "pending becomes the run")
-		t.eq(#results, 0, "nothing newly complete")
+	should_resume = function(ns, t)
+		local run = ns.Progress.New(36, 0)
+		ns.Progress.Touch(run, 1000)
+		t.eq(ns.Progress.ShouldResume(run, 1000 + 1800, 1800), true, "inside window")
+		t.eq(ns.Progress.ShouldResume(run, 1000 + 1801, 1800), false, "outside window")
+		t.eq(ns.Progress.ShouldResume(nil, 1000, 1800), false, "no run")
+		t.eq(ns.Progress.ShouldResume({ map = 36, entered = 0, killed = {}, done = {} }, 100, 1800), false, "never touched")
 	end,
 
-	-- Review finding: /fdc reset before the key resolves must not pull old kills back.
-	resolve_discards_saved_after_reset = function(ns, t)
-		local saved = ns.Progress.New(189, 100)
-		ns.Progress.OnEncounterEnd(saved, 449, 1, 150)
-		local pending = ns.Progress.New(189, 300)
-		local run = ns.Progress.Resolve(saved, pending, true)
-		t.eq(run, pending, "pending wins")
-		t.eq(run.killed[449], nil, "old kill gone")
+	reset_message = function(ns, t)
+		local fmt = "%s has been reset."
+		t.eq(ns.Progress.MapFromResetMessage("Deadmines has been reset.", fmt), 36, "plain")
+		t.eq(ns.Progress.MapFromResetMessage("Zul'Farrak has been reset.", fmt), 209, "apostrophe")
+		t.eq(ns.Progress.MapFromResetMessage("Scarlet Monastery has been reset.", fmt), 189, "winged map")
+		t.eq(ns.Progress.MapFromResetMessage("Deadmines (Heroic) is full.", fmt), nil, "other message")
+		t.eq(ns.Progress.MapFromResetMessage("Molten Core has been reset.", fmt), nil, "not a dungeon")
+		t.eq(ns.Progress.MapFromResetMessage("Deadmines has been reset.", nil), nil, "no format")
 	end,
 
-	guid_key = function(ns, t)
-		t.eq(ns.Progress.KeyFromGUID("Creature-0-4372-189-12345-3974-0000ABCDEF"), "189:12345", "creature")
-		t.eq(ns.Progress.KeyFromGUID("Vehicle-0-4372-189-12345-3974-0000ABCDEF"), "189:12345", "vehicle")
-		t.eq(ns.Progress.KeyFromGUID("GameObject-0-4372-189-12345-3974-0000ABCDEF"), "189:12345", "gameobject")
-		t.eq(ns.Progress.KeyFromGUID("Player-4372-0ABCDEF1"), nil, "player")
-		t.eq(ns.Progress.KeyFromGUID(nil), nil, "nil")
-	end,
-
-	-- In-game error: UnitGUID on a nameplate returns a secret string that errors when indexed.
-	guid_key_secret = function(ns, t)
-		local secret = "Creature-0-4372-189-12345-3974-0000ABCDEF"
+	reset_message_secret = function(ns, t)
+		local msg = "Deadmines has been reset."
 		local saved = _G.issecretvalue
 		_G.issecretvalue = function(v)
-			return v == secret
+			return v == msg
 		end
-		local ok, key = pcall(ns.Progress.KeyFromGUID, secret)
+		local ok, mapID = pcall(ns.Progress.MapFromResetMessage, msg, "%s has been reset.")
 		_G.issecretvalue = saved
 		t.ok(ok, "does not error")
-		t.eq(key, nil, "secret GUID gives no key")
+		t.eq(mapID, nil, "secret message ignored")
 	end,
 
 	prune = function(ns, t)
 		local now = 1000000
-		local runs = { old = { entered = now - 90000 }, fresh = { entered = now - 100 } }
+		local runs = {
+			old = { entered = now - 90000, lastSeen = now - 90000 },
+			fresh = { entered = now - 100, lastSeen = now - 100 },
+			longRun = { entered = now - 90000, lastSeen = now - 10 },
+		}
 		ns.Progress.Prune(runs, now, 86400)
 		t.eq(runs.old, nil, "old removed")
 		t.ok(runs.fresh, "fresh kept")
+		t.ok(runs.longRun, "judged by last seen")
 	end,
 
 	format = function(ns, t)

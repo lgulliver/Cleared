@@ -1,17 +1,20 @@
 -- ForeverDungeonComplete: boss kill toasts and a Dungeon Complete banner for WoW Forever (interface 16001).
--- Kills come from ENCOUNTER_END. Progress is saved per instance copy, identified by the zone UID
--- in creature GUIDs, so a /reload or disconnect resumes and a fresh reset starts at zero.
+-- Kills come from ENCOUNTER_END. Creature GUIDs are secret inside Forever dungeons, so the instance
+-- copy can't be identified directly. Progress is saved per dungeon and resumed when you come back
+-- within RESUME_WINDOW; a reset message or an already-killed boss dying again starts a new run.
 
 local ADDON, ns = ...
 local Progress, UI = ns.Progress, ns.UI
 
 local MAX_RUN_AGE = 86400
+local RESUME_WINDOW = 1800 -- roughly when an empty instance resets
+local TOUCH_INTERVAL = 60
 local DEFAULTS = { toasts = true, banner = true, sound = true, debug = false }
-local KEY_EVENTS = { "PLAYER_TARGET_CHANGED", "UPDATE_MOUSEOVER_UNIT", "NAME_PLATE_UNIT_ADDED" }
 
 local db -- ForeverDungeonCompleteCharDB, set on ADDON_LOADED
 local settingsCategory
-local active -- { map, key, run, reset } while inside a supported dungeon
+local active -- { map, run } while inside a supported dungeon
+local ticker
 local frame = CreateFrame("Frame")
 
 local function Print(msg)
@@ -25,60 +28,44 @@ local function ShowBanner(r)
 	end
 end
 
--- Instance key ----------------------------------------------------------------
-
-local function SetKeyEvents(on)
-	for _, event in ipairs(KEY_EVENTS) do
-		if on then
-			frame:RegisterEvent(event)
-		else
-			frame:UnregisterEvent(event)
-		end
-	end
-end
-
--- Tries to learn which instance copy we're in from a creature GUID on the given unit.
-local function TryResolveKey(unit)
-	if not active or active.key or not unit then
-		return
-	end
-	local key = Progress.KeyFromGUID(UnitGUID(unit))
-	if not key or key:match("^(%d+):") ~= tostring(active.map) then
-		return
-	end
-	active.key = key
-	local results
-	active.run, results = Progress.Resolve(db.runs[key], active.run, active.reset)
-	active.reset = nil
-	db.runs[key] = active.run
-	SetKeyEvents(false)
-	for _, r in ipairs(results) do
-		ShowBanner(r)
-	end
-end
-
 -- Zone tracking ---------------------------------------------------------------
+
+local function Touch()
+	if active then
+		Progress.Touch(active.run, time())
+	end
+end
+
+local function Leave()
+	Touch()
+	active = nil
+	if ticker then
+		ticker:Cancel()
+		ticker = nil
+	end
+end
 
 local function UpdateZone()
 	local _, instanceType, _, _, _, _, _, mapID = GetInstanceInfo()
 	local dungeon = instanceType == "party" and ns.Dungeons[mapID]
-	if not dungeon then
-		active = nil
-		SetKeyEvents(false)
-		return
-	end
 	if active and active.map == mapID then
 		return
 	end
-	active = nil
-	SetKeyEvents(false)
+	Leave()
+	if not dungeon then
+		return
+	end
 	if ns.Disabled[mapID] then
 		Print(("%s isn't supported yet (%s)."):format(dungeon.name, ns.Disabled[mapID]))
 		return
 	end
-	active = { map = mapID, run = Progress.New(mapID, time()) }
-	SetKeyEvents(true)
-	TryResolveKey("target")
+	local now = time()
+	if not Progress.ShouldResume(db.runs[mapID], now, RESUME_WINDOW) then
+		db.runs[mapID] = Progress.New(mapID, now)
+	end
+	active = { map = mapID, run = db.runs[mapID] }
+	Touch()
+	ticker = C_Timer.NewTicker(TOUCH_INTERVAL, Touch)
 end
 
 local function OnEncounterEnd(encounterID, encounterName, success)
@@ -89,18 +76,27 @@ local function OnEncounterEnd(encounterID, encounterName, success)
 	if not active then
 		return
 	end
-	TryResolveKey("boss1")
-	TryResolveKey("target")
-
-	local r = Progress.OnEncounterEnd(active.run, encounterID, success, time())
+	local now = time()
+	local r = Progress.OnEncounterEnd(active.run, encounterID, success, now)
+	Progress.Touch(active.run, now)
 	if not r then
 		return
+	end
+	if r.restarted then
+		Print("this looks like a new instance, so progress has restarted.")
 	end
 	if db.settings.toasts then
 		UI.Toast(r.name .. " defeated", r.optional and "(bonus)" or (r.done .. "/" .. r.total))
 	end
 	if r.completed then
 		ShowBanner(r)
+	end
+end
+
+local function OnSystemMessage(msg)
+	local mapID = Progress.MapFromResetMessage(msg, INSTANCE_RESET_SUCCESS)
+	if mapID and db.runs[mapID] and not (active and active.map == mapID) then
+		db.runs[mapID] = nil
 	end
 end
 
@@ -140,6 +136,11 @@ local function InitDB()
 		end
 	end
 	db.runs = db.runs or {}
+	for key in pairs(db.runs) do
+		if type(key) ~= "number" then
+			db.runs[key] = nil -- 0.1.0 dev builds keyed runs by instance GUID
+		end
+	end
 	Progress.Prune(db.runs, time(), MAX_RUN_AGE)
 end
 
@@ -148,8 +149,9 @@ end
 frame:RegisterEvent("ADDON_LOADED")
 frame:RegisterEvent("PLAYER_ENTERING_WORLD")
 frame:RegisterEvent("ZONE_CHANGED_NEW_AREA")
-frame:RegisterEvent("ENCOUNTER_START")
+frame:RegisterEvent("PLAYER_LEAVING_WORLD")
 frame:RegisterEvent("ENCOUNTER_END")
+frame:RegisterEvent("CHAT_MSG_SYSTEM")
 frame:SetScript("OnEvent", function(_, event, ...)
 	if event == "ADDON_LOADED" then
 		if ... == ADDON then
@@ -166,19 +168,13 @@ frame:SetScript("OnEvent", function(_, event, ...)
 	end
 	if event == "PLAYER_ENTERING_WORLD" or event == "ZONE_CHANGED_NEW_AREA" then
 		UpdateZone()
-	elseif event == "ENCOUNTER_START" then
-		-- Learn the instance copy before the kill, so toast counts include saved progress.
-		TryResolveKey("boss1")
-		TryResolveKey("target")
+	elseif event == "PLAYER_LEAVING_WORLD" then
+		Touch() -- /reload, logout and loading screens
 	elseif event == "ENCOUNTER_END" then
 		local encounterID, encounterName, _, _, success = ...
 		OnEncounterEnd(encounterID, encounterName, success)
-	elseif event == "PLAYER_TARGET_CHANGED" then
-		TryResolveKey("target")
-	elseif event == "UPDATE_MOUSEOVER_UNIT" then
-		TryResolveKey("mouseover")
-	elseif event == "NAME_PLATE_UNIT_ADDED" then
-		TryResolveKey(...)
+	elseif event == "CHAT_MSG_SYSTEM" then
+		OnSystemMessage(...)
 	end
 end)
 
@@ -213,12 +209,8 @@ SlashCmdList.FOREVERDUNGEONCOMPLETE = function(arg)
 			return
 		end
 		active.run = Progress.New(active.map, time())
-		if active.key then
-			db.runs[active.key] = active.run
-		else
-			-- Saved progress for this copy isn't known yet; drop it when the key resolves.
-			active.reset = true
-		end
+		db.runs[active.map] = active.run
+		Touch()
 		Print("progress for this instance cleared.")
 	elseif arg == "debug" then
 		db.settings.debug = not db.settings.debug

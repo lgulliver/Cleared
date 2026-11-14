@@ -5,6 +5,8 @@ local _, ns = ...
 local Progress = {}
 ns.Progress = Progress
 
+local REPEAT_GAP = 60 -- seconds; a repeat ENCOUNTER_END within this is the same kill re-firing
+
 -- A "unit" is what completes: a whole dungeon, or one wing of a winged map.
 local unitsCache = {}
 
@@ -54,22 +56,39 @@ function Progress.New(mapID, now)
 	return { map = mapID, entered = now, killed = {}, done = {} }
 end
 
+-- Marks the run as still in use, for the resume window.
+function Progress.Touch(run, now)
+	run.lastSeen = now
+end
+
+-- A saved run is resumed when the dungeon is re-entered within the window (an empty
+-- instance resets after about 30 minutes), e.g. after a /reload, disconnect or run-back.
+function Progress.ShouldResume(run, now, window)
+	return run ~= nil and run.lastSeen ~= nil and now - run.lastSeen <= window
+end
+
 -- Returns nil when the event should be ignored, otherwise a result describing the kill.
+-- A boss already in the run dying again more than REPEAT_GAP seconds later means this is a
+-- new instance copy (GUIDs that would identify the copy are secret), so the run restarts.
 function Progress.OnEncounterEnd(run, encID, success, now)
 	local enc = ns.Encounters[encID]
-	if success ~= 1 or not enc or enc.map ~= run.map or run.killed[encID] then
+	if success ~= 1 or not enc or enc.map ~= run.map then
 		return nil
+	end
+	local restarted = false
+	if run.killed[encID] then
+		if now - run.killed[encID] <= REPEAT_GAP then
+			return nil
+		end
+		run.killed, run.done, run.entered = {}, {}, now
+		restarted = true
 	end
 	run.killed[encID] = now
 
-	if ns.Optional[encID] then
-		return { name = enc.name, optional = true, completed = false }
-	end
-
-	local unit = unitFor(run.map, encID)
+	local unit = not ns.Optional[encID] and unitFor(run.map, encID)
 	if not unit then
-		-- Not optional and in no wing: check_data.lua prevents this, so treat it as a bonus.
-		return { name = enc.name, optional = true, completed = false }
+		-- Optional, or in no wing (check_data.lua prevents that), so it's a bonus kill.
+		return { name = enc.name, optional = true, completed = false, restarted = restarted }
 	end
 
 	local done, total = countKilled(run, unit), #unit.encounters
@@ -85,6 +104,7 @@ function Progress.OnEncounterEnd(run, encID, success, now)
 		total = total,
 		completed = completed,
 		elapsed = completed and (now - run.entered) or nil,
+		restarted = restarted,
 	}
 end
 
@@ -106,68 +126,28 @@ function Progress.Status(run)
 	return list
 end
 
--- Combines a run restored from SavedVariables with kills recorded before the instance key was known.
-function Progress.Merge(saved, pending)
-	for id, time in pairs(pending.killed) do
-		if not saved.killed[id] then
-			saved.killed[id] = time
-		end
-	end
-	for name in pairs(pending.done) do
-		saved.done[name] = true
-	end
-	return saved
-end
-
--- Adopts the run for a newly resolved instance key. Kills recorded before the key was known
--- (pending) are merged into the saved run unless the player reset in the meantime, then every
--- unit is re-checked: a wing whose last kill landed in the pending run completes here.
--- Returns the run to keep and a list of results for units that just completed.
-function Progress.Resolve(saved, pending, discardSaved)
-	local run = pending
-	if saved and not discardSaved then
-		run = Progress.Merge(saved, pending)
-	end
-	local results = {}
-	for _, unit in ipairs(Progress.Units(run.map)) do
-		local done, total = countKilled(run, unit), #unit.encounters
-		if done == total and not run.done[unit.name] then
-			run.done[unit.name] = true
-			local last = run.entered
-			for _, id in ipairs(unit.encounters) do
-				last = math.max(last, run.killed[id])
-			end
-			results[#results + 1] = {
-				name = ns.Encounters[unit.encounters[total]].name,
-				optional = false,
-				unit = unit.name,
-				done = done,
-				total = total,
-				completed = true,
-				elapsed = last - run.entered,
-			}
-		end
-	end
-	return run, results
-end
-
--- "Creature-0-serverID-mapID-zoneUID-npcID-spawnUID" -> "mapID:zoneUID".
--- The zone UID identifies one instance copy, so a reset gives a new key.
--- Secret GUIDs (the client hides some, e.g. nameplate units in instances) give nil.
-function Progress.KeyFromGUID(guid)
-	if type(guid) ~= "string" or (issecretvalue and issecretvalue(guid)) then
+-- Turns the client's "%s has been reset." system message into a dungeon map ID.
+function Progress.MapFromResetMessage(msg, fmt)
+	if type(msg) ~= "string" or type(fmt) ~= "string" or (issecretvalue and issecretvalue(msg)) then
 		return nil
 	end
-	local kind, mapID, zoneUID = guid:match("^(%a+)%-%d+%-%d+%-(%d+)%-(%d+)%-")
-	if kind == "Creature" or kind == "Vehicle" or kind == "GameObject" then
-		return mapID .. ":" .. zoneUID
+	local pattern = "^" .. fmt:gsub("[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%0"):gsub("%%%%s", "(.+)") .. "$"
+	local name = msg:match(pattern)
+	if not name then
+		return nil
+	end
+	for mapID, dungeon in pairs(ns.Dungeons) do
+		if dungeon.name == name then
+			return mapID
+		end
 	end
 	return nil
 end
 
 function Progress.Prune(runs, now, maxAge)
 	for key, run in pairs(runs) do
-		if not run.entered or now - run.entered > maxAge then
+		local seen = run.lastSeen or run.entered
+		if not seen or now - seen > maxAge then
 			runs[key] = nil
 		end
 	end
