@@ -4,6 +4,7 @@ An addon for [World of Warcraft: Forever](https://worldofwarcraft.blizzard.com/)
 
 - **A toast for every boss.** Each kill shows the boss name and your progress, e.g. `Lord Roccor defeated  2/16`.
 - **A banner when you're done.** Once every counted boss in the dungeon (or wing) is dead, you get a `DUNGEON COMPLETE` banner with the elapsed time and a sound.
+- **A boss list on screen.** While you're in a dungeon, a small panel under the minimap lists every boss with a tick once it's dead, plus optional bosses under "Bonus". Drag the header to move it, click it to collapse it.
 - **Wings count separately.** Scarlet Monastery, Dire Maul, Stratholme and Blackrock Spire are split into their wings, and each one gets its own count and banner.
 - **Survives reloads.** Progress is saved per dungeon. Coming back within 30 minutes (after a `/reload`, disconnect or run-back) picks up where you left off. A reset message, or a boss you'd already killed dying again, starts a fresh count.
 
@@ -29,11 +30,12 @@ ln -s "$PWD/Cleared" "/path/to/World of Warcraft/_forever_/Interface/AddOns/Clea
 | `/cleared status` | Show the current dungeon or wing, bosses killed and bosses remaining |
 | `/cleared test` | Show a sample toast and banner |
 | `/cleared reset` | Forget progress for the current instance |
+| `/cleared resetpos` | Move the boss list back under the minimap |
 | `/cleared debug` | Print every boss encounter event with its ID (useful for reporting a boss that isn't counted) |
 
 ## Settings
 
-Esc > Options > AddOns > Cleared!. Saved per character: boss kill toasts, the Dungeon Complete banner, and the banner sound, each on or off.
+Esc > Options > AddOns > Cleared!. Saved per character: boss kill toasts, the Dungeon Complete banner, the banner sound and the boss list, each on or off.
 
 ## Which bosses count
 

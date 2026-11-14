@@ -4,12 +4,12 @@
 -- within RESUME_WINDOW; a reset message or an already-killed boss dying again starts a new run.
 
 local ADDON, ns = ...
-local Progress, UI = ns.Progress, ns.UI
+local Progress, UI, Tracker = ns.Progress, ns.UI, ns.Tracker
 
 local MAX_RUN_AGE = 86400
 local RESUME_WINDOW = 1800 -- roughly when an empty instance resets
 local TOUCH_INTERVAL = 60
-local DEFAULTS = { toasts = true, banner = true, sound = true, debug = false }
+local DEFAULTS = { toasts = true, banner = true, sound = true, tracker = true, debug = false }
 
 local db -- ClearedCharDB, set on ADDON_LOADED
 local settingsCategory
@@ -26,6 +26,23 @@ local function ShowBanner(r)
 		UI.Banner("DUNGEON COMPLETE", r.unit,
 			r.total .. "/" .. r.total .. " · " .. Progress.FormatElapsed(r.elapsed), db.settings.sound)
 	end
+end
+
+local function RefreshTracker()
+	if not active or not db.settings.tracker then
+		Tracker.Hide()
+		return
+	end
+	Tracker.Show(Progress.TrackerView(active.run), {
+		pos = db.trackerPos,
+		collapsed = db.trackerCollapsed == true,
+		onMoved = function(pos)
+			db.trackerPos = pos
+		end,
+		onToggle = function(collapsed)
+			db.trackerCollapsed = collapsed
+		end,
+	})
 end
 
 -- Zone tracking ---------------------------------------------------------------
@@ -52,6 +69,7 @@ local function UpdateZone()
 		return
 	end
 	Leave()
+	RefreshTracker()
 	if not dungeon then
 		return
 	end
@@ -66,6 +84,7 @@ local function UpdateZone()
 	active = { map = mapID, run = db.runs[mapID] }
 	Touch()
 	ticker = C_Timer.NewTicker(TOUCH_INTERVAL, Touch)
+	RefreshTracker()
 end
 
 local function OnEncounterEnd(encounterID, encounterName, success)
@@ -82,6 +101,7 @@ local function OnEncounterEnd(encounterID, encounterName, success)
 	if not r then
 		return
 	end
+	RefreshTracker()
 	if r.restarted then
 		Print("this looks like a new instance, so progress has restarted.")
 	end
@@ -112,6 +132,10 @@ local function BuildSettings()
 	Check("toasts", "Boss kill toasts", "Show a toast with progress when a boss dies.")
 	Check("banner", "Dungeon Complete banner", "Show a banner when every counted boss in the dungeon or wing is dead.")
 	Check("sound", "Banner sound", "Play a sound with the Dungeon Complete banner.")
+	Check("tracker", "Boss list", "Show the list of bosses while inside a dungeon.")
+	if Settings.SetOnValueChangedCallback then
+		Settings.SetOnValueChangedCallback(ADDON .. "_tracker", RefreshTracker)
+	end
 	Settings.RegisterAddOnCategory(category)
 	settingsCategory = category
 end
@@ -211,11 +235,16 @@ SlashCmdList.CLEARED = function(arg)
 		active.run = Progress.New(active.map, time())
 		db.runs[active.map] = active.run
 		Touch()
+		RefreshTracker()
 		Print("progress for this instance cleared.")
+	elseif arg == "resetpos" then
+		db.trackerPos = nil
+		Tracker.ResetPosition()
+		Print("boss list moved back under the minimap.")
 	elseif arg == "debug" then
 		db.settings.debug = not db.settings.debug
 		Print("debug " .. (db.settings.debug and "on" or "off") .. ".")
 	else
-		Print("/cleared (settings) | status | test | reset | debug")
+		Print("/cleared (settings) | status | test | reset | resetpos | debug")
 	end
 end
