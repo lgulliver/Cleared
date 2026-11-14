@@ -2,7 +2,7 @@
 
 All notable changes to Cleared!. Format follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [0.1.0] - Unreleased
+## [0.1.0] - 2026-11-14
 
 First release.
 
