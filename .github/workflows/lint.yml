@@ -1,0 +1,35 @@
+name: Lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  luacheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: lunarmodules/luacheck@cc089e3f65acdd1ef8716cc73a3eca24a6b845e4 # v1.2.0
+        with:
+          args: Cleared tools tests
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Install LuaJIT
+        run: sudo apt-get update && sudo apt-get install -y luajit
+      - name: Progress tests
+        run: luajit tests/run.lua
+      - name: Overrides check
+        run: luajit tools/check_data.lua
+      - name: Generator tests
+        run: python3 -m unittest tools/test_gen_data.py -v

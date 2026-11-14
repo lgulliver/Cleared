@@ -182,6 +182,15 @@ Toasts on/off, banner on/off, sound on/off. That's all.
 
 Release gate (decided by the user): v1 ships after step 1 has been run in a handful of dungeons, at least one classic, one winged and one Forever-only. Any dungeon where a counted boss doesn't fire goes into `ns.Disabled`. The rest are confirmed through `/fdc debug` during normal play after release. A dungeon that's confirmed broken leads to approach 3 for that dungeon.
 
+## Amendment 2026-11-14: no instance GUIDs
+
+In-game testing showed that `UnitGUID` returns a secret value inside Forever dungeons, both for `target` and for nameplates, so the zone UID can't be read. Agreed with the user:
+
+- Runs are keyed by map ID. A saved run is resumed when the dungeon is re-entered within 30 minutes of it last being seen. Last seen is updated every 60 s while inside, on each kill and on `PLAYER_LEAVING_WORLD`. Otherwise a new run starts.
+- `CHAT_MSG_SYSTEM` matching `INSTANCE_RESET_SUCCESS` drops the saved run for that dungeon.
+- A counted or optional boss already in the run dying again more than 60 s later means a new copy. The run restarts at that kill.
+- Accepted risk: a reset that isn't seen, followed by re-entry within 30 minutes, starts counts from the old run until a repeat kill. Bosses killed before that point add to the old run, so an early banner is possible. `/fdc reset` is the manual fix.
+
 ## Left to the builder
 
 - Exact frame styling, animation, font sizes, toast position.
