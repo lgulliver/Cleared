@@ -126,6 +126,65 @@ function Progress.Status(run)
 	return list
 end
 
+local function bossRows(run, ids)
+	local rows = {}
+	for _, id in ipairs(ids) do
+		rows[#rows + 1] = { name = ns.Encounters[id].name, killed = run.killed[id] ~= nil }
+	end
+	return rows
+end
+
+-- What the boss list shows. On a winged map with no counted kill yet it's an overview of the wings;
+-- otherwise it's the dungeon, or the wing of the most recent counted kill, boss by boss.
+-- Optional bosses on the map are always listed separately as bonus rows.
+function Progress.TrackerView(run)
+	local dungeon = ns.Dungeons[run.map]
+	local optional = {}
+	for _, id in ipairs(dungeon.encounters) do
+		if ns.Optional[id] then
+			optional[#optional + 1] = id
+		end
+	end
+	local view = { completed = false, bosses = {}, bonus = bossRows(run, optional) }
+
+	local units = Progress.Units(run.map)
+	local unit, latest = nil, -math.huge
+	if ns.Wings[run.map] then
+		for _, u in ipairs(units) do
+			for _, id in ipairs(u.encounters) do
+				if run.killed[id] and run.killed[id] > latest then
+					unit, latest = u, run.killed[id]
+				end
+			end
+		end
+	else
+		unit = units[1]
+	end
+
+	if not unit then
+		view.title = dungeon.name
+		view.wings = {}
+		local prefix = dungeon.name .. ": "
+		for _, u in ipairs(units) do
+			local name = u.name:sub(1, #prefix) == prefix and u.name:sub(#prefix + 1) or u.name
+			view.wings[#view.wings + 1] = {
+				name = name,
+				done = countKilled(run, u),
+				total = #u.encounters,
+				completed = run.done[u.name] == true,
+			}
+		end
+		return view
+	end
+
+	view.title = unit.name
+	view.done = countKilled(run, unit)
+	view.total = #unit.encounters
+	view.completed = view.done == view.total
+	view.bosses = bossRows(run, unit.encounters)
+	return view
+end
+
 -- Turns the client's "%s has been reset." system message into a dungeon map ID.
 function Progress.MapFromResetMessage(msg, fmt)
 	if type(msg) ~= "string" or type(fmt) ~= "string" or (issecretvalue and issecretvalue(msg)) then

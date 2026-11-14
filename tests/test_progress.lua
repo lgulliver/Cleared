@@ -218,4 +218,72 @@ return {
 		t.eq(#plain, 1, "plain map listed before any kill")
 		t.eq(plain[1].done, 0, "plain done")
 	end,
+
+	tracker_plain = function(ns, t)
+		local v = ns.Progress.TrackerView(ns.Progress.New(43, 0))
+		t.eq(v.title, "Wailing Caverns", "title")
+		t.eq(v.done, 0, "done")
+		t.eq(v.total, 6, "total")
+		t.eq(v.completed, false, "completed")
+		t.eq(#v.bosses, 6, "bosses")
+		t.eq(v.bosses[1].name, "Lady Anacondra", "first")
+		t.eq(v.bosses[3].name, "Lord Pythas", "skips optional Kresh")
+		t.eq(#v.bonus, 2, "bonus")
+		t.eq(v.bonus[1].name, "Kresh", "bonus first")
+		t.eq(v.wings, nil, "no wings")
+	end,
+
+	tracker_plain_kills = function(ns, t)
+		local run = ns.Progress.New(43, 0)
+		ns.Progress.OnEncounterEnd(run, 588, 1, 10)
+		ns.Progress.OnEncounterEnd(run, 589, 1, 20)
+		local v = ns.Progress.TrackerView(run)
+		t.eq(v.done, 1, "bonus not counted")
+		t.eq(v.bosses[3].killed, true, "Pythas dead")
+		t.eq(v.bosses[1].killed, false, "Anacondra alive")
+		t.eq(v.bonus[2].killed, true, "Skum dead")
+		t.eq(v.bonus[1].killed, false, "Kresh alive")
+	end,
+
+	tracker_completed = function(ns, t)
+		local run = ns.Progress.New(43, 0)
+		for i, id in ipairs({ 585, 586, 588, 590, 591, 592 }) do
+			ns.Progress.OnEncounterEnd(run, id, 1, i * 100)
+		end
+		t.eq(ns.Progress.TrackerView(run).completed, true, "completed")
+	end,
+
+	tracker_winged_overview = function(ns, t)
+		local run = ns.Progress.New(189, 0)
+		ns.Progress.OnEncounterEnd(run, 2799, 1, 10) -- not on this map: ignored
+		local v = ns.Progress.TrackerView(run)
+		t.eq(v.title, "Scarlet Monastery", "title")
+		t.eq(#v.wings, 4, "wings")
+		t.eq(v.wings[2].name, "Library", "short name")
+		t.eq(v.wings[2].total, 2, "wing total")
+		t.eq(v.wings[2].done, 0, "wing done")
+		t.eq(#v.bosses, 0, "no bosses")
+		t.eq(v.done, nil, "no header count")
+	end,
+
+	tracker_winged_active = function(ns, t)
+		local run = ns.Progress.New(189, 0)
+		ns.Progress.OnEncounterEnd(run, 446, 1, 10)
+		local v = ns.Progress.TrackerView(run)
+		t.eq(v.title, "Scarlet Monastery: Library", "library")
+		t.eq(v.done, 1, "done")
+		t.eq(v.total, 2, "total")
+		t.eq(v.wings, nil, "expanded")
+		ns.Progress.OnEncounterEnd(run, 449, 1, 500)
+		t.eq(ns.Progress.TrackerView(run).title, "Scarlet Monastery: Cathedral", "follows latest kill")
+	end,
+
+	tracker_winged_bonus_only = function(ns, t)
+		local run = ns.Progress.New(329, 0)
+		ns.Progress.OnEncounterEnd(run, 2799, 1, 10)
+		local v = ns.Progress.TrackerView(run)
+		t.ok(v.wings, "bonus kill does not pick a wing")
+		t.eq(#v.bonus, 7, "all map optionals")
+		t.eq(v.wings[1].name, "Live", "short name")
+	end,
 }
