@@ -54,15 +54,56 @@ for mapID, wings in pairs(ns.Wings) do
 	end
 end
 
+local grouped = {}
+for _, group in ipairs(ns.OneOf) do
+	if #group.encounters < 2 then
+		problem("%s: a one-of group needs at least two encounters", group.name)
+	end
+	local first = ns.Encounters[group.encounters[1]]
+	for _, id in ipairs(group.encounters) do
+		local enc = ns.Encounters[id]
+		if not enc then
+			problem("%s: encounter %d does not exist in Data.lua", group.name, id)
+		elseif first and enc.map ~= first.map then
+			problem("%s: encounter %s is on map %d, not %d", group.name, label(id), enc.map, first.map)
+		end
+		if ns.Optional[id] then
+			problem("%s: encounter %s is both in a one-of group and optional", group.name, label(id))
+		end
+		if grouped[id] then
+			problem("%s: encounter %s is also in %s", group.name, label(id), grouped[id])
+		end
+		grouped[id] = group.name
+	end
+	local wings = first and ns.Wings[first.map]
+	if wings then
+		local wingOf = {}
+		for _, wing in ipairs(wings) do
+			for _, id in ipairs(wing.encounters) do
+				wingOf[id] = wing.name
+			end
+		end
+		for _, id in ipairs(group.encounters) do
+			if wingOf[id] ~= wingOf[group.encounters[1]] then
+				problem("%s: encounter %s is not in the same wing as the rest of the group", group.name, label(id))
+			end
+		end
+	end
+end
+
 for mapID in pairs(ns.Disabled) do
 	if not ns.Dungeons[mapID] then
 		problem("disabled map %d is not a dungeon in Data.lua", mapID)
 	end
 end
 
-local dungeonCount, encounterCount = 0, 0
+local dungeonCount, raidCount, encounterCount = 0, 0, 0
 for mapID, dungeon in pairs(ns.Dungeons) do
-	dungeonCount = dungeonCount + 1
+	if dungeon.raid then
+		raidCount = raidCount + 1
+	else
+		dungeonCount = dungeonCount + 1
+	end
 	local counted = 0
 	for _, id in ipairs(dungeon.encounters) do
 		encounterCount = encounterCount + 1
@@ -82,4 +123,4 @@ if #problems > 0 then
 	end
 	os.exit(1)
 end
-print(string.format("ok: %d dungeons, %d encounters", dungeonCount, encounterCount))
+print(string.format("ok: %d dungeons, %d raids, %d encounters", dungeonCount, raidCount, encounterCount))

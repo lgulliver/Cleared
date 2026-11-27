@@ -7,8 +7,61 @@ ns.Progress = Progress
 
 local REPEAT_GAP = 60 -- seconds; a repeat ENCOUNTER_END within this is the same kill re-firing
 
--- A "unit" is what completes: a whole dungeon, or one wing of a winged map.
-local unitsCache = {}
+-- A "unit" is what completes: a whole dungeon, or one wing of a winged map. Its encounters are
+-- slots: an encounter ID, or an ns.OneOf group that any one member's kill fills.
+local unitsCache, groupOf = {}, nil
+
+local function slots(ids)
+	if not groupOf then
+		groupOf = {}
+		for _, group in ipairs(ns.OneOf) do
+			for _, id in ipairs(group.encounters) do
+				groupOf[id] = group
+			end
+		end
+	end
+	local list, added = {}, {}
+	for _, id in ipairs(ids) do
+		local group = groupOf[id]
+		if not ns.Optional[id] and not (group and added[group]) then
+			list[#list + 1] = group or id
+			if group then
+				added[group] = true
+			end
+		end
+	end
+	return list
+end
+
+local function slotHas(slot, encID)
+	if type(slot) == "number" then
+		return slot == encID
+	end
+	for _, id in ipairs(slot.encounters) do
+		if id == encID then
+			return true
+		end
+	end
+	return false
+end
+
+-- The member that died, or nil.
+local function slotKill(run, slot)
+	if type(slot) == "number" then
+		return run.killed[slot] and slot
+	end
+	for _, id in ipairs(slot.encounters) do
+		if run.killed[id] then
+			return id
+		end
+	end
+end
+
+-- A group shows the boss that was fought once one has died, and its own name until then.
+local function slotName(run, slot)
+	local id = slotKill(run, slot) or slot
+	return type(id) == "number" and ns.Encounters[id].name or slot.name
+end
 
 function Progress.Units(mapID)
 	if unitsCache[mapID] then
@@ -17,16 +70,10 @@ function Progress.Units(mapID)
 	local units = {}
 	if ns.Wings[mapID] then
 		for _, wing in ipairs(ns.Wings[mapID]) do
-			units[#units + 1] = { name = wing.name, encounters = wing.encounters }
+			units[#units + 1] = { name = wing.name, encounters = slots(wing.encounters) }
 		end
 	elseif ns.Dungeons[mapID] then
-		local counted = {}
-		for _, id in ipairs(ns.Dungeons[mapID].encounters) do
-			if not ns.Optional[id] then
-				counted[#counted + 1] = id
-			end
-		end
-		units[1] = { name = ns.Dungeons[mapID].name, encounters = counted }
+		units[1] = { name = ns.Dungeons[mapID].name, encounters = slots(ns.Dungeons[mapID].encounters) }
 	end
 	unitsCache[mapID] = units
 	return units
@@ -34,8 +81,8 @@ end
 
 local function unitFor(mapID, encID)
 	for _, unit in ipairs(Progress.Units(mapID)) do
-		for _, id in ipairs(unit.encounters) do
-			if id == encID then
+		for _, slot in ipairs(unit.encounters) do
+			if slotHas(slot, encID) then
 				return unit
 			end
 		end
@@ -44,8 +91,8 @@ end
 
 local function countKilled(run, unit)
 	local n = 0
-	for _, id in ipairs(unit.encounters) do
-		if run.killed[id] then
+	for _, slot in ipairs(unit.encounters) do
+		if slotKill(run, slot) then
 			n = n + 1
 		end
 	end
@@ -115,9 +162,9 @@ function Progress.Status(run)
 		local done = countKilled(run, unit)
 		if done > 0 or not ns.Wings[run.map] then
 			local remaining = {}
-			for _, id in ipairs(unit.encounters) do
-				if not run.killed[id] then
-					remaining[#remaining + 1] = ns.Encounters[id].name
+			for _, slot in ipairs(unit.encounters) do
+				if not slotKill(run, slot) then
+					remaining[#remaining + 1] = slotName(run, slot)
 				end
 			end
 			list[#list + 1] = { name = unit.name, done = done, total = #unit.encounters, remaining = remaining }
@@ -126,10 +173,10 @@ function Progress.Status(run)
 	return list
 end
 
-local function bossRows(run, ids)
+local function bossRows(run, list)
 	local rows = {}
-	for _, id in ipairs(ids) do
-		rows[#rows + 1] = { name = ns.Encounters[id].name, killed = run.killed[id] ~= nil }
+	for _, slot in ipairs(list) do
+		rows[#rows + 1] = { name = slotName(run, slot), killed = slotKill(run, slot) ~= nil }
 	end
 	return rows
 end
@@ -151,8 +198,9 @@ function Progress.TrackerView(run)
 	local unit, latest = nil, -math.huge
 	if ns.Wings[run.map] then
 		for _, u in ipairs(units) do
-			for _, id in ipairs(u.encounters) do
-				if run.killed[id] and run.killed[id] > latest then
+			for _, slot in ipairs(u.encounters) do
+				local id = slotKill(run, slot)
+				if id and run.killed[id] > latest then
 					unit, latest = u, run.killed[id]
 				end
 			end
@@ -185,7 +233,8 @@ function Progress.TrackerView(run)
 	return view
 end
 
--- Turns the client's "%s has been reset." system message into a dungeon map ID.
+-- Turns the client's "%s has been reset." system message into a dungeon map ID. Raids are skipped:
+-- their lockouts can't be reset, and one (Naxxramas) shares its name with a dungeon.
 function Progress.MapFromResetMessage(msg, fmt)
 	if type(msg) ~= "string" or type(fmt) ~= "string" or (issecretvalue and issecretvalue(msg)) then
 		return nil
@@ -196,17 +245,20 @@ function Progress.MapFromResetMessage(msg, fmt)
 		return nil
 	end
 	for mapID, dungeon in pairs(ns.Dungeons) do
-		if dungeon.name == name then
+		if dungeon.name == name and not dungeon.raid then
 			return mapID
 		end
 	end
 	return nil
 end
 
-function Progress.Prune(runs, now, maxAge)
+-- Raid runs are kept for raidMaxAge (a lockout) instead of maxAge.
+function Progress.Prune(runs, now, maxAge, raidMaxAge)
 	for key, run in pairs(runs) do
 		local seen = run.lastSeen or run.entered
-		if not seen or now - seen > maxAge then
+		local dungeon = ns.Dungeons[run.map]
+		local age = dungeon and dungeon.raid and raidMaxAge or maxAge
+		if not seen or now - seen > age then
 			runs[key] = nil
 		end
 	end

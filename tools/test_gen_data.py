@@ -25,15 +25,16 @@ def e(id_, map_id, name, order=0, difficulty=0, flags=1024):
 
 
 class FilterTests(unittest.TestCase):
-    def test_keeps_only_dungeons(self):
+    def test_keeps_dungeons_and_raids(self):
         data = filter_data(
-            [m(36, "Deadmines"), m(409, "Molten Core", "2")],
-            [e(2747, 36, "Edwin VanCleef"), e(1, 409, "Lucifron")],
+            [m(36, "Deadmines"), m(409, "Molten Core", "2"), m(1, "Kalimdor", "0")],
+            [e(2747, 36, "Edwin VanCleef"), e(663, 409, "Lucifron"), e(9, 1, "World")],
         )
-        self.assertIn(36, data)
-        self.assertNotIn(409, data)
+        self.assertEqual(sorted(data), [36, 409])
+        self.assertFalse(data[36]["raid"])
+        self.assertTrue(data[409]["raid"])
 
-    def test_drops_non_zero_difficulty(self):
+    def test_drops_sod_difficulties(self):
         data = filter_data(
             [m(48, "Blackfathom Deeps")],
             [
@@ -45,10 +46,22 @@ class FilterTests(unittest.TestCase):
         )
         self.assertEqual([x["id"] for x in data[48]["encounters"]], [2913])
 
+    def test_keeps_normal_difficulty(self):
+        # Some dungeons (BFD, Gnomeregan) list part of their bosses under DifficultyID 1.
+        data = filter_data(
+            [m(48, "Blackfathom Deeps")],
+            [
+                e(2913, 48, "Lorgus Jett", order=-3000),
+                e(2912, 48, "Old Serra'kis", order=-2000, difficulty=1),
+                e(2910, 48, "Aku'mai", order=0, difficulty=1),
+            ],
+        )
+        self.assertEqual([x["id"] for x in data[48]["encounters"]], [2913, 2912, 2910])
+
     def test_drops_world_and_test_maps(self):
         data = filter_data(
-            [m(0, "Eastern Kingdoms"), m(13, "Test Dungeon"), m(36, "Deadmines")],
-            [e(1, 0, "World"), e(2, 13, "Test"), e(3, 3002, "Orphan"), e(4, 36, "Rhahk'Zor")],
+            [m(0, "Eastern Kingdoms"), m(13, "Test Dungeon"), m(2720, "The Searing Basin"), m(36, "Deadmines")],
+            [e(1, 0, "World"), e(2, 13, "Test"), e(5, 2720, "Testwerk"), e(3, 3002, "Orphan"), e(4, 36, "Rhahk'Zor")],
         )
         self.assertEqual(sorted(data), [36])
 
@@ -85,6 +98,15 @@ class RenderTests(unittest.TestCase):
         b = render_lua(self.sample(), "b")
         self.assertEqual(a, b)
         self.assertLess(a.index("[36]"), a.index("[209]"))
+
+    def test_render_marks_raids(self):
+        data = filter_data(
+            [m(36, "Deadmines"), m(409, "Molten Core", "2")],
+            [e(2747, 36, "Edwin VanCleef"), e(663, 409, "Lucifron")],
+        )
+        out = render_lua(data, "b")
+        self.assertIn('[409] = { name = "Molten Core", raid = true, encounters = { 663 } },', out)
+        self.assertIn('[36] = { name = "Deadmines", encounters = { 2747 } },', out)
 
 
 if __name__ == "__main__":

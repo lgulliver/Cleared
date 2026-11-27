@@ -24,22 +24,28 @@ BUILDS_URL = "https://wago.tools/api/builds"
 TABLE_URL = "https://wago.tools/db2/{table}/csv?build={build}"
 PRODUCT = "wowf"
 
-# Map 0 holds world bosses, 13 is Blizzard's test dungeon.
-EXCLUDED_MAPS = {0, 13}
+# Map 0 holds world bosses; 13 and 2720 (The Searing Basin, boss "Testwerk") are test maps.
+EXCLUDED_MAPS = {0, 13, 2720}
+
+# Map.InstanceType: 1 = dungeon, 2 = raid.
+INSTANCE_TYPES = {"1", "2"}
+
+# Regular 5-man rows use 0 or 1 (BFD and Gnomeregan split bosses across both); 198/201/215 are SoD.
+DIFFICULTIES = {"0", "1"}
 
 
 def filter_data(map_rows, enc_rows):
-    """Return {mapID: {"name", "encounters": [{"id", "name", "order", "flags"}]}} for dungeons only."""
+    """Return {mapID: {"name", "raid", "encounters": [{"id", "name", "order", "flags"}]}} for dungeons and raids."""
     dungeons = {}
     for row in map_rows:
         map_id = int(row["ID"])
-        if row.get("InstanceType") != "1" or map_id in EXCLUDED_MAPS or not row.get("MapName_lang"):
+        if row.get("InstanceType") not in INSTANCE_TYPES or map_id in EXCLUDED_MAPS or not row.get("MapName_lang"):
             continue
-        dungeons[map_id] = {"name": row["MapName_lang"], "encounters": []}
+        dungeons[map_id] = {"name": row["MapName_lang"], "raid": row["InstanceType"] == "2", "encounters": []}
 
     for row in enc_rows:
         map_id = int(row["MapID"])
-        if row["DifficultyID"] != "0" or map_id not in dungeons:
+        if row["DifficultyID"] not in DIFFICULTIES or map_id not in dungeons:
             continue
         dungeons[map_id]["encounters"].append(
             {
@@ -71,7 +77,8 @@ def render_lua(data, build):
     for map_id in sorted(data):
         d = data[map_id]
         ids = ", ".join(str(x["id"]) for x in d["encounters"])
-        lines.append(f"\t[{map_id}] = {{ name = {lua_string(d['name'])}, encounters = {{ {ids} }} }},")
+        raid = " raid = true," if d["raid"] else ""
+        lines.append(f"\t[{map_id}] = {{ name = {lua_string(d['name'])},{raid} encounters = {{ {ids} }} }},")
     lines += ["}", "", "ns.Encounters = {"]
     encounters = sorted(((x["id"], map_id, x) for map_id, d in data.items() for x in d["encounters"]))
     for enc_id, map_id, x in encounters:

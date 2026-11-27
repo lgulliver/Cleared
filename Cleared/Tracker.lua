@@ -1,4 +1,4 @@
--- The boss list shown while inside a dungeon. Draws a view from Progress.TrackerView; the frame is
+-- The boss list shown while inside a dungeon or raid. Draws a view from Progress.TrackerView; the frame is
 -- created on first use. Drag the header to move it, click the header to collapse it.
 local _, ns = ...
 

@@ -45,6 +45,64 @@ return {
 		t.eq(#units[1].encounters, 16, "BRD counted encounters (21 minus 5 optional)")
 	end,
 
+	units_raid = function(ns, t)
+		local units = ns.Progress.Units(409)
+		t.eq(#units, 1, "unit count")
+		t.eq(units[1].name, "Molten Core", "unit name")
+		t.eq(#units[1].encounters, 10, "MC counted encounters (11 minus The Molten Core)")
+		local run = ns.Progress.New(409, 0)
+		local r = ns.Progress.OnEncounterEnd(run, 672, 1, 10)
+		t.eq(r.name, "Ragnaros", "name")
+		t.eq(r.total, 10, "total")
+	end,
+
+	units_maraudon = function(ns, t)
+		local units = ns.Progress.Units(349)
+		t.eq(#units, 3, "wing count")
+		t.eq(units[3].name, "Maraudon: Inner", "inner wing")
+		local run = ns.Progress.New(349, 0)
+		ns.Progress.OnEncounterEnd(run, 422, 1, 10)
+		local r = ns.Progress.OnEncounterEnd(run, 423, 1, 20)
+		t.eq(r.unit, "Maraudon: Orange", "unit")
+		t.eq(r.completed, true, "orange completes on its own")
+	end,
+
+	one_of_units = function(ns, t)
+		local units = ns.Progress.Units(2875)
+		local slots = units[1].encounters
+		t.eq(#slots, 4, "two fixed bosses plus two one-of groups")
+		t.eq(slots[1], 3141, "Harbinger first")
+		t.eq(slots[3].name, "Opera of Malediction", "opera group in Three Little Wolves' place")
+		t.eq(slots[4].name, "The Failed Apprentice", "apprentice group")
+	end,
+
+	one_of_any_member_counts = function(ns, t)
+		local run = ns.Progress.New(2875, 0)
+		local r = ns.Progress.OnEncounterEnd(run, 3171, 1, 10)
+		t.eq(r.optional, false, "counted")
+		t.eq(r.name, "Sairuh Maryla", "toast uses the boss")
+		t.eq(r.done, 1, "done")
+		t.eq(r.total, 4, "total")
+		ns.Progress.OnEncounterEnd(run, 3141, 1, 20)
+		ns.Progress.OnEncounterEnd(run, 3146, 1, 30)
+		r = ns.Progress.OnEncounterEnd(run, 3169, 1, 40)
+		t.eq(r.completed, true, "one of each group completes the run")
+		t.eq(r.elapsed, 40, "elapsed")
+	end,
+
+	one_of_tracker_and_status = function(ns, t)
+		local run = ns.Progress.New(2875, 0)
+		local v = ns.Progress.TrackerView(run)
+		t.eq(v.bosses[3].name, "Opera of Malediction", "group name before a kill")
+		t.eq(v.bosses[3].killed, false, "not killed")
+		ns.Progress.OnEncounterEnd(run, 3168, 1, 10)
+		v = ns.Progress.TrackerView(run)
+		t.eq(v.bosses[3].name, "Hans and Greta", "killed member's name after")
+		t.eq(v.bosses[3].killed, true, "killed")
+		local s = ns.Progress.Status(run)
+		t.eq(s[1].remaining[3], "The Failed Apprentice", "remaining lists the group")
+	end,
+
 	kill_counts = function(ns, t)
 		local run = ns.Progress.New(189, 100)
 		local r = ns.Progress.OnEncounterEnd(run, 446, 1, 150)
@@ -167,7 +225,8 @@ return {
 		t.eq(ns.Progress.MapFromResetMessage("Zul'Farrak has been reset.", fmt), 209, "apostrophe")
 		t.eq(ns.Progress.MapFromResetMessage("Scarlet Monastery has been reset.", fmt), 189, "winged map")
 		t.eq(ns.Progress.MapFromResetMessage("Deadmines (Heroic) is full.", fmt), nil, "other message")
-		t.eq(ns.Progress.MapFromResetMessage("Molten Core has been reset.", fmt), nil, "not a dungeon")
+		t.eq(ns.Progress.MapFromResetMessage("Molten Core has been reset.", fmt), nil, "raids can't be reset")
+		t.eq(ns.Progress.MapFromResetMessage("Naxxramas has been reset.", fmt), 2921, "dungeon sharing a raid's name")
 		t.eq(ns.Progress.MapFromResetMessage("Deadmines has been reset.", nil), nil, "no format")
 	end,
 
@@ -194,6 +253,19 @@ return {
 		t.eq(runs.old, nil, "old removed")
 		t.ok(runs.fresh, "fresh kept")
 		t.ok(runs.longRun, "judged by last seen")
+	end,
+
+	prune_raid = function(ns, t)
+		local now = 1000000
+		local runs = {
+			[36] = { map = 36, entered = now - 90000, lastSeen = now - 90000 },
+			[409] = { map = 409, entered = now - 90000, lastSeen = now - 90000 },
+			[469] = { map = 469, entered = now - 700000, lastSeen = now - 700000 },
+		}
+		ns.Progress.Prune(runs, now, 86400, 604800)
+		t.eq(runs[36], nil, "dungeon pruned after a day")
+		t.ok(runs[409], "raid kept within its lockout")
+		t.eq(runs[469], nil, "raid pruned after a week")
 	end,
 
 	format = function(ns, t)
