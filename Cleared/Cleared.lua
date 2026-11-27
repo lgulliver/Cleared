@@ -1,19 +1,21 @@
--- Cleared!: boss kill toasts and a Dungeon Complete banner for WoW Forever (interface 16001).
--- Kills come from ENCOUNTER_END. Creature GUIDs are secret inside Forever dungeons, so the instance
--- copy can't be identified directly. Progress is saved per dungeon and resumed when you come back
--- within RESUME_WINDOW; a reset message or an already-killed boss dying again starts a new run.
+-- Cleared!: boss kill toasts and a Dungeon/Raid Complete banner for WoW Forever (interface 16001).
+-- Kills come from ENCOUNTER_END. Creature GUIDs are secret inside Forever instances, so the instance
+-- copy can't be identified directly. Progress is saved per map and resumed when you come back
+-- within RESUME_WINDOW (RAID_LOCKOUT for raids); a reset message or an already-killed boss dying
+-- again starts a new run.
 
 local ADDON, ns = ...
 local Progress, UI, Tracker = ns.Progress, ns.UI, ns.Tracker
 
 local MAX_RUN_AGE = 86400
 local RESUME_WINDOW = 1800 -- roughly when an empty instance resets
+local RAID_LOCKOUT = 604800 -- raid progress lasts the lockout; a new lockout shows up as a repeat kill
 local TOUCH_INTERVAL = 60
 local DEFAULTS = { toasts = true, banner = true, sound = true, tracker = true, debug = false }
 
 local db -- ClearedCharDB, set on ADDON_LOADED
 local settingsCategory
-local active -- { map, run } while inside a supported dungeon
+local active -- { map, run } while inside a supported dungeon or raid
 local ticker
 local frame = CreateFrame("Frame")
 
@@ -23,7 +25,7 @@ end
 
 local function ShowBanner(r)
 	if db.settings.banner then
-		UI.Banner("DUNGEON COMPLETE", r.unit,
+		UI.Banner(ns.Dungeons[active.map].raid and "RAID COMPLETE" or "DUNGEON COMPLETE", r.unit,
 			r.total .. "/" .. r.total .. " · " .. Progress.FormatElapsed(r.elapsed), db.settings.sound)
 	end
 end
@@ -64,7 +66,7 @@ end
 
 local function UpdateZone()
 	local _, instanceType, _, _, _, _, _, mapID = GetInstanceInfo()
-	local dungeon = instanceType == "party" and ns.Dungeons[mapID]
+	local dungeon = (instanceType == "party" or instanceType == "raid") and ns.Dungeons[mapID]
 	if active and active.map == mapID then
 		return
 	end
@@ -78,7 +80,7 @@ local function UpdateZone()
 		return
 	end
 	local now = time()
-	if not Progress.ShouldResume(db.runs[mapID], now, RESUME_WINDOW) then
+	if not Progress.ShouldResume(db.runs[mapID], now, dungeon.raid and RAID_LOCKOUT or RESUME_WINDOW) then
 		db.runs[mapID] = Progress.New(mapID, now)
 	end
 	active = { map = mapID, run = db.runs[mapID] }
@@ -130,9 +132,9 @@ local function BuildSettings()
 		Settings.CreateCheckbox(category, setting, tip)
 	end
 	Check("toasts", "Boss kill toasts", "Show a toast with progress when a boss dies.")
-	Check("banner", "Dungeon Complete banner", "Show a banner when every counted boss in the dungeon or wing is dead.")
-	Check("sound", "Banner sound", "Play a sound with the Dungeon Complete banner.")
-	Check("tracker", "Boss list", "Show the list of bosses while inside a dungeon.")
+	Check("banner", "Complete banner", "Show a banner when every counted boss in the dungeon, wing or raid is dead.")
+	Check("sound", "Banner sound", "Play a sound with the Complete banner.")
+	Check("tracker", "Boss list", "Show the list of bosses while inside a dungeon or raid.")
 	if Settings.SetOnValueChangedCallback then
 		Settings.SetOnValueChangedCallback(ADDON .. "_tracker", RefreshTracker)
 	end
@@ -165,7 +167,7 @@ local function InitDB()
 			db.runs[key] = nil -- 0.1.0 dev builds keyed runs by instance GUID
 		end
 	end
-	Progress.Prune(db.runs, time(), MAX_RUN_AGE)
+	Progress.Prune(db.runs, time(), MAX_RUN_AGE, RAID_LOCKOUT)
 end
 
 -- Events and commands ---------------------------------------------------------
@@ -204,7 +206,7 @@ end)
 
 local function PrintStatus()
 	if not active then
-		Print("not in a supported dungeon.")
+		Print("not in a supported dungeon or raid.")
 		return
 	end
 	local list = Progress.Status(active.run)
@@ -229,7 +231,7 @@ SlashCmdList.CLEARED = function(arg)
 		UI.Banner("DUNGEON COMPLETE", "Scarlet Monastery: Cathedral", "2/2 · 18m 04s", db.settings.sound)
 	elseif arg == "reset" then
 		if not active then
-			Print("not in a supported dungeon.")
+			Print("not in a supported dungeon or raid.")
 			return
 		end
 		active.run = Progress.New(active.map, time())

@@ -36,6 +36,41 @@ ns.Optional = {
 	[241] = true, -- Plugger Spazzring
 	[2789] = true, -- Princess Moira Bronzebeard
 	[2791] = true, -- The Vault
+
+	-- Gnomeregan: only appears in the Emi Shortfuse escort event
+	[2768] = true, -- Grubbis
+
+	-- Scholomance: summoned
+	[2805] = true, -- Kirtonos (Blood of Innocents)
+	[3055] = true, -- Kormok (ritual candles)
+
+	-- Zul'Farrak: summoned with the Mallet
+	[594] = true, -- Gahz'rilla
+
+	-- Sunken Temple: statue puzzle and Blood of Hakkar event
+	[3582] = true, -- Atal'alarion
+	[3583] = true, -- Avatar of Hakkar
+
+	-- Maraudon: off the main route (Wicked Grotto) and the Earth Song Falls bonus boss
+	[427] = true, -- Tinkerer Gizlock
+	[428] = true, -- Rotgrip
+
+	-- Karazhan Crypts: summoned by the book on the altar, three Mysterious Relics, Warlock-only dialogue
+	[3143] = true, -- Kharon
+	[3145] = true, -- Dark Rider
+	[3152] = true, -- Unk'omon
+
+	-- Molten Core: not a boss kill
+	[3018] = true, -- The Molten Core
+
+	-- Zul'Gurub: summoned
+	[788] = true, -- Edge of Madness
+	[790] = true, -- Gahz'ranka
+
+	-- Ahn'Qiraj Temple: not needed to reach C'Thun
+	[710] = true, -- Silithid Royalty
+	[713] = true, -- Viscidus
+	[716] = true, -- Ouro
 }
 
 -- Maps split into separately completed wings. Each wing tracks its own progress and banner.
@@ -56,10 +91,24 @@ ns.Wings = {
 		{ name = "Stratholme: Live", encounters = { 474, 475, 477, 478, 476, 472 } },
 		{ name = "Stratholme: Undead", encounters = { 479, 480, 481, 482, 483, 484 } },
 	},
+	[349] = {
+		{ name = "Maraudon: Orange", encounters = { 422, 423 } },
+		{ name = "Maraudon: Purple", encounters = { 424, 425 } },
+		{ name = "Maraudon: Inner", encounters = { 426, 429 } },
+	},
 	[229] = {
 		{ name = "Lower Blackrock Spire", encounters = { 267, 268, 269, 270, 272, 275 } },
 		{ name = "Upper Blackrock Spire", encounters = { 3062, 3063, 3068, 3069 } },
 	},
+}
+
+-- Encounters where only one of several bosses can be fought per run. Each group counts as one boss,
+-- killed when any member dies, and sits where its first member is in the dungeon's order.
+ns.OneOf = {
+	-- Karazhan Crypts: Opera of Malediction rotates daily (Three Little Wolves is assumed to be the
+	-- Trizivast variant); the Portcullis Key frees one of the three Failed Apprentices per run.
+	{ name = "Opera of Malediction", encounters = { 3144, 3168, 3169 } },
+	{ name = "The Failed Apprentice", encounters = { 3170, 3171, 3172 } },
 }
 
 -- Dungeons switched off until their bosses are confirmed to fire ENCOUNTER_END.

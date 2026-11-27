@@ -1,4 +1,4 @@
--- Boss kill toasts and the Dungeon Complete banner. Frames are created on first use.
+-- Boss kill toasts and the Dungeon/Raid Complete banner. Frames are created on first use.
 local _, ns = ...
 
 local UI = {}
