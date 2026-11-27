@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Uploads $ZIP to CurseForge as a Forever file.
+# --form-string sends the metadata JSON as-is; with -F, curl cuts it at the first ";".
 # Needs: CF_API_TOKEN, CF_PROJECT_ID, ZIP, VERSION, STABILITY, PATCH, NOTES_FILE.
 set -euo pipefail
 
@@ -23,6 +24,6 @@ metadata=$(jq -n \
 
 echo "Uploading $ZIP to CurseForge project $CF_PROJECT_ID (Forever $PATCH, $STABILITY)"
 curl -fsS -H "x-api-token: $CF_API_TOKEN" \
-	-F "metadata=$metadata" -F "file=@$ZIP" \
+	--form-string "metadata=$metadata" -F "file=@$ZIP" \
 	"$site/api/projects/$CF_PROJECT_ID/upload-file"
 echo
